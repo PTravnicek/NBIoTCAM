@@ -1,0 +1,214 @@
+[
+    {
+        "id": "916068870f124f97",
+        "type": "debug",
+        "z": "d4e33c145f0fb0dd",
+        "name": "debug 4",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "false",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 720,
+        "y": 1100,
+        "wires": []
+    },
+    {
+        "id": "022d251b920e6e05",
+        "type": "debug",
+        "z": "d4e33c145f0fb0dd",
+        "name": "debug 5",
+        "active": false,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "false",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 1100,
+        "y": 1140,
+        "wires": []
+    },
+    {
+        "id": "73b91a9ca531534e",
+        "type": "file",
+        "z": "d4e33c145f0fb0dd",
+        "name": "Write /home/images/my_image.jpg",
+        "filename": "/home/images/my_image.jpg",
+        "filenameType": "str",
+        "appendNewline": false,
+        "createDir": false,
+        "overwriteFile": "true",
+        "encoding": "binary",
+        "x": 1180,
+        "y": 1060,
+        "wires": [
+            [
+                "56ebbfc93a3874b0"
+            ]
+        ]
+    },
+    {
+        "id": "56ebbfc93a3874b0",
+        "type": "http request",
+        "z": "d4e33c145f0fb0dd",
+        "name": "image POST",
+        "method": "POST",
+        "ret": "txt",
+        "paytoqs": "ignore",
+        "url": "https://rm.fsv.cvut.cz/upload_container_image",
+        "tls": "",
+        "persist": false,
+        "proxy": "",
+        "insecureHTTPParser": false,
+        "authType": "",
+        "senderr": false,
+        "headers": [
+            {
+                "keyType": "other",
+                "keyValue": "Content-Type",
+                "valueType": "other",
+                "valueValue": "image/jpeg"
+            }
+        ],
+        "x": 1450,
+        "y": 1120,
+        "wires": [
+            [
+                "a4490d9f47094a12",
+                "a20d9adb53729f1a"
+            ]
+        ]
+    },
+    {
+        "id": "e7240357d8764f2b",
+        "type": "tcp in",
+        "z": "d4e33c145f0fb0dd",
+        "name": "TCP Server",
+        "server": "server",
+        "host": "",
+        "port": "8009",
+        "datamode": "stream",
+        "datatype": "buffer",
+        "newline": "",
+        "topic": "",
+        "trim": false,
+        "tls": "",
+        "x": 490,
+        "y": 1060,
+        "wires": [
+            [
+                "916068870f124f97",
+                "3a914eda261a3ec8"
+            ]
+        ]
+    },
+    {
+        "id": "3a914eda261a3ec8",
+        "type": "function",
+        "z": "d4e33c145f0fb0dd",
+        "name": "Accumulate & Check last 4 = 0xFF",
+        "func": "// Retrieve existing buffer from flow context\nlet accumulated = flow.get('accumulatedBuffer') || Buffer.alloc(0);\n\n// Ensure incoming is a Buffer\nlet incoming = msg.payload;\nif (!Buffer.isBuffer(incoming)) {\n    // If it's a string or array, convert\n    incoming = Buffer.from(incoming);\n}\n\n// Concatenate\naccumulated = Buffer.concat([accumulated, incoming]);\nflow.set('accumulatedBuffer', accumulated);\n\n// Debug sizes\nnode.warn(`Received chunk: ${incoming.length} bytes, total so far: ${accumulated.length}`);\n\n// If we haven't even got 4 bytes yet, do nothing\nif (accumulated.length < 4) {\n    return null;\n}\n\n// Check if the last 4 bytes are 0xFF\nconst last4 = accumulated.slice(-4);\n\n// If last4 = 0xFF,0xFF,0xFF,0xFF\nif (last4[0] === 0xFF && last4[1] === 0xFF && last4[2] === 0xFF && last4[3] === 0xFF) {\n    node.warn('Found 4 consecutive 0xFF at the end; emitting entire buffer');\n\n    // Output the entire accumulated buffer\n    msg.payload = accumulated;\n\n    // Optionally set headers for a JPEG\n    msg.headers = {\n        'Content-Type': 'image/jpeg'\n    };\n\n    // Reset the buffer for next time\n    flow.set('accumulatedBuffer', Buffer.alloc(0));\n\n    return msg;\n}\n\n// Not found or not at the end, do not pass msg forward yet\nreturn null;",
+        "outputs": 1,
+        "timeout": "",
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 800,
+        "y": 1060,
+        "wires": [
+            [
+                "022d251b920e6e05",
+                "73b91a9ca531534e"
+            ]
+        ]
+    },
+    {
+        "id": "a4490d9f47094a12",
+        "type": "debug",
+        "z": "d4e33c145f0fb0dd",
+        "name": "debug 6",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "false",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 1640,
+        "y": 1160,
+        "wires": []
+    },
+    {
+        "id": "a20d9adb53729f1a",
+        "type": "file",
+        "z": "d4e33c145f0fb0dd",
+        "name": "Write /home/images/my_image.jpg",
+        "filename": "/home/images/my_image.jpg",
+        "filenameType": "str",
+        "appendNewline": false,
+        "createDir": false,
+        "overwriteFile": "delete",
+        "encoding": "binary",
+        "x": 1720,
+        "y": 1060,
+        "wires": [
+            [
+                "49020dac68363494"
+            ]
+        ]
+    },
+    {
+        "id": "b1f5645452b84351",
+        "type": "inject",
+        "z": "d4e33c145f0fb0dd",
+        "name": "",
+        "props": [
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "x": 1450,
+        "y": 1060,
+        "wires": [
+            [
+                "a20d9adb53729f1a"
+            ]
+        ]
+    },
+    {
+        "id": "49020dac68363494",
+        "type": "debug",
+        "z": "d4e33c145f0fb0dd",
+        "name": "debug 7",
+        "active": false,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "false",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 1960,
+        "y": 1060,
+        "wires": []
+    },
+    {
+        "id": "6764ce15769533e8",
+        "type": "comment",
+        "z": "d4e33c145f0fb0dd",
+        "name": "TCP image from Nb-IoT module",
+        "info": "",
+        "x": 430,
+        "y": 1020,
+        "wires": []
+    }
+]

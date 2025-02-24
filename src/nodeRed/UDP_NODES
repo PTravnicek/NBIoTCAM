@@ -1,0 +1,48 @@
+[
+    {
+        "id": "d57c675cedad0f02",
+        "type": "udp in",
+        "z": "d4e33c145f0fb0dd",
+        "name": "UDP in message",
+        "iface": "",
+        "port": "8094",
+        "ipv": "udp4",
+        "multicast": "false",
+        "group": "",
+        "datatype": "buffer",
+        "x": 500,
+        "y": 1260,
+        "wires": [
+            [
+                "865555cd5a00c3e4"
+            ]
+        ]
+    },
+    {
+        "id": "865555cd5a00c3e4",
+        "type": "debug",
+        "z": "d4e33c145f0fb0dd",
+        "name": "UDP debug",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 690,
+        "y": 1260,
+        "wires": []
+    },
+    {
+        "id": "f893f88c539847e3",
+        "type": "comment",
+        "z": "d4e33c145f0fb0dd",
+        "name": "UDP envData from Nb-IoT module",
+        "info": "",
+        "x": 440,
+        "y": 1220,
+        "wires": []
+    }
+]
