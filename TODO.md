@@ -1,10 +1,9 @@
 # TODO List
 
 ## In Progress
-- [ ] Sending the photo over TCP reliably
+- [ ] Sending the photo over TCP reliably- checking for errors ATS+NOCL - IF error, retry sending command again.
 
 ## Upcoming
-- [ ] AT+NSOCL - IF error, retry sending command again. Now it just keeps on going.
 - [ ] Solve REBOOT_CAUSE_SECURITY_PMU_POWER_ON_RESET, problably power supply problem.
 - [ ] Try HW modding the BC95 module and power it from the 3.3V pin instead of the LDO.
 - [ ] In node-red, send the UDP message to the RM server.
