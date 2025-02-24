@@ -1,10 +1,9 @@
 # TODO List
 
 ## In Progress
-- [ ] In node-red, send the UDP message to the RM server.
+- [ ] Solve REBOOT_CAUSE_SECURITY_PMU_POWER_ON_RESET, problably power supply problem.
 
 ## Upcoming
-- [ ] Solve REBOOT_CAUSE_SECURITY_PMU_POWER_ON_RESET, problably power supply problem.
 - [ ] Try HW modding the BC95 module and power it from the 3.3V pin instead of the LDO.
 - [ ] Timeout for the photo transfer on node-red.
 - [ ] Some problems with UDP message when TCP is not sent. 
@@ -59,6 +58,7 @@
 ## Completed
 - [x] Accept only traffic from the actual photo tcp transfer (opening and closing bytes). 
 - [x] Sending the photo over TCP reliably- checking for errors ATS+NOCL - IF error, retry sending command again.
+- [x] In node-red, send the UDP message to the RM server.
 
 ## Notes
 * Additional context or reminders 
