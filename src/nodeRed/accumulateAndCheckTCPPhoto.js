@@ -12,7 +12,7 @@ if (!Buffer.isBuffer(incoming)) {
 if (!started) {
     // Check if this chunk contains the beginning marker (0x00 0x00 0x00 0x00)
     for (let i = 0; i <= incoming.length - 4; i++) {
-        if (incoming[i] === 0x00 && 
+        if (incoming[i] === 0x00 &&
             incoming[i + 1] === 0x00 && 
             incoming[i + 2] === 0x00 && 
             incoming[i + 3] === 0x00) {

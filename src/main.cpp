@@ -412,7 +412,7 @@ bool sendPhotoOverTCP(const uint8_t *buffer, size_t length) {
   String connectCmd = "AT+NSOCO=" + String(socketID) + "," + SERVER_IP + "," + String(TCP_PORT);
   String response;
   
-  // Attempt to connect, retrying on ERROR with a maximum of 5 attempts
+  // Attempt to connect, retrying on ERROR with a maximum of 10 attempts
   const int MAX_RETRIES = 10;
   int retryCount = 0;
 
@@ -439,14 +439,52 @@ bool sendPhotoOverTCP(const uint8_t *buffer, size_t length) {
   const uint8_t BGN_MARKER[] = {0x00, 0x00, 0x00, 0x00};
   String bgnMarkerHex = bufferToHex(BGN_MARKER, 4);
   String bgnCmd = "AT+NSOSD=" + String(socketID) + ",4," + bgnMarkerHex;
-  sendATCommand(bgnCmd);
+  
+  String responsebgnCmd;
+  bool markerSent = false;
+  int retries = 0;
+
+  while (!markerSent && retries < MAX_RETRIES) {
+    responsebgnCmd = sendATCommand(bgnCmd);
+    if (responsebgnCmd.indexOf("ERROR") == -1) {
+      markerSent = true;
+    } else {
+      retries++;
+      debugln("Error sending start marker, retry " + String(retries));
+    }
+  }
+
+  if (!markerSent) {
+    debugln("Failed to send start marker after " + String(MAX_RETRIES) + " retries");
+    return false;
+  }
   while (offset < length) {
     size_t thisChunkSize = min(CHUNK_SIZE, length - offset);
     String hexChunk = bufferToHex(buffer + offset, thisChunkSize);
     String sendCmd = "AT+NSOSD=" + String(socketID) + "," 
                              + String(thisChunkSize) + ","
                              + hexChunk;
-    sendATCommand(sendCmd);
+    
+    String response;
+    bool chunkSent = false;
+    const int MAX_RETRIES = 5;
+    int retries = 0;
+
+    while (!chunkSent && retries < MAX_RETRIES) {
+      response = sendATCommand(sendCmd);
+      if (response.indexOf("ERROR") == -1) {
+        chunkSent = true;
+      } else {
+        retries++;
+        debugln("Error sending chunk, retry " + String(retries));
+      }
+    }
+
+    if (!chunkSent) {
+      debugln("Failed to send chunk after " + String(MAX_RETRIES) + " retries");
+      return false;
+    }
+
     offset += thisChunkSize;
   }
 
