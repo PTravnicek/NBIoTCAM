@@ -1,11 +1,10 @@
 # TODO List
 
 ## In Progress
-- [ ] Solve REBOOT_CAUSE_SECURITY_PMU_POWER_ON_RESET, problably power supply problem. / no issue when power from bench
-- [ ] Timeout for the photo transfer on node-red.
+- [ ] Try HW modding the BC95 module and power it from the 3.3V pin instead of the LDO.
+- [ ] Solve REBOOT_CAUSE_SECURITY_PMU_POWER_ON_RESET, problably power supply problem. / no issue when power from bench/ issue not present without direct solution (??)
 
 ## Upcoming
-- [ ] Try HW modding the BC95 module and power it from the 3.3V pin instead of the LDO.
 - [ ] Some problems with UDP message when TCP is not sent. 
         Problem: NO RESPONSE FROM THE MODULE
             [BC95 SEND] AT+NRB
@@ -58,7 +57,9 @@
         4.8. AT+NSORF Receive Command
         When data arrives, a “+NSONMI” response will be generated to indicate the socket the message was received on and also the amount of data
 
+
 ## Completed
+- [x] Timeout for the photo transfer on node-red.
 - [x] Accept only traffic from the actual photo tcp transfer (opening and closing bytes). 
 - [x] Sending the photo over TCP reliably- checking for errors ATS+NOCL - IF error, retry sending command again.
 - [x] In node-red, send the UDP message to the RM server.

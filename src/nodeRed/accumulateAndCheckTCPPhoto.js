@@ -1,68 +1,69 @@
-// Retrieve existing buffer, started flag, and last activity timestamp from flow context
+// Retrieve existing buffer and started flag from flow context
 let accumulated = flow.get('accumulatedBuffer') || Buffer.alloc(0);
 let started = flow.get('photoTransferStarted') || false;
-let lastActivity = flow.get('lastPhotoActivity') || Date.now();
+let lastReceiveTime = flow.get('lastReceiveTime') || 0;
 
-// Update last activity timestamp
-flow.set('lastPhotoActivity', Date.now());
+// Constants
+const TIMEOUT_MS = 20000; // 20 seconds timeout
 
-// Check for timeout if we've started receiving data
-if (started && accumulated.length > 0) {
-    const TIMEOUT_MS = 20000; // 20 seconds
-    if (Date.now() - lastActivity > TIMEOUT_MS) {
-        node.warn('Timeout detected - no data received for 20 seconds. Forcing completion.');
-        
-        // Remove any partial end marker that might be present
-        while (accumulated.length >= 4 && 
-               accumulated[accumulated.length - 1] === 0xFF &&
-               accumulated[accumulated.length - 2] === 0xFF &&
-               accumulated[accumulated.length - 3] === 0xFF &&
-               accumulated[accumulated.length - 4] === 0xFF) {
-            accumulated = accumulated.slice(0, -4);
-        }
-        
-        // Create message with accumulated data
-        msg.payload = accumulated;
-        msg.headers = {
-            'Content-Type': 'image/jpeg'
-        };
-        msg.timeout = true; // Flag to indicate timeout completion
-
-        // Reset all state
-        flow.set('accumulatedBuffer', Buffer.alloc(0));
-        flow.set('photoTransferStarted', false);
-        flow.set('lastPhotoActivity', null);
-
-        return msg;
-    }
-}
-
-// Ensure incoming is a Buffer
+// Ensure incoming is a Buffer first
 let incoming = msg.payload;
 if (!Buffer.isBuffer(incoming)) {
     incoming = Buffer.from(incoming);
 }
 
-// If we haven't started yet, look for the beginning marker
-if (!started) {
-    // Check if this chunk contains the beginning marker (0x00 0x00 0x00 0x00)
+// Check for timeout if we have started receiving data
+const currentTime = Date.now();
+if (started && accumulated.length > 0 && (currentTime - lastReceiveTime > TIMEOUT_MS)) {
+    node.warn('Timeout: No data received for ' + TIMEOUT_MS/1000 + ' seconds. Resetting buffer.');
+    accumulated = Buffer.alloc(0);
+    started = false;
+    flow.set('accumulatedBuffer', accumulated);
+    flow.set('photoTransferStarted', false);
+    flow.set('lastReceiveTime', 0);
+    
+    // Check if current chunk has start marker
     for (let i = 0; i <= incoming.length - 4; i++) {
         if (incoming[i] === 0x00 &&
             incoming[i + 1] === 0x00 && 
             incoming[i + 2] === 0x00 && 
             incoming[i + 3] === 0x00) {
             
-            // Found the marker! Start accumulating from after the marker
+            // Found marker in current chunk after timeout
             started = true;
             flow.set('photoTransferStarted', true);
-            // Only take data after the marker
+            // Skip the marker (i + 4)
+            incoming = incoming.slice(i + 4);
+            node.warn('Found start marker in new chunk after timeout');
+            break;
+        }
+    }
+    if (!started) {
+        return null;
+    }
+}
+
+// Update last receive time
+flow.set('lastReceiveTime', Date.now());
+
+// If we haven't started yet, look for the beginning marker
+if (!started) {
+    // Check if this chunk contains the beginning marker
+    for (let i = 0; i <= incoming.length - 4; i++) {
+        if (incoming[i] === 0x00 &&
+            incoming[i + 1] === 0x00 && 
+            incoming[i + 2] === 0x00 && 
+            incoming[i + 3] === 0x00) {
+            
+            started = true;
+            flow.set('photoTransferStarted', true);
+            // Skip the marker (i + 4)
             incoming = incoming.slice(i + 4);
             node.warn('Found beginning marker, starting accumulation');
             break;
         }
     }
     
-    // If we haven't found the start marker, ignore this chunk
     if (!started) {
         node.warn('Waiting for start marker...');
         return null;
@@ -93,10 +94,10 @@ if (accumulated.length >= 4) {
             'Content-Type': 'image/jpeg'
         };
 
-        // Reset the accumulation state
+        // Reset all accumulation state
         flow.set('accumulatedBuffer', Buffer.alloc(0));
         flow.set('photoTransferStarted', false);
-        flow.set('lastPhotoActivity', null);
+        flow.set('lastReceiveTime', 0);
 
         return msg;
     }
