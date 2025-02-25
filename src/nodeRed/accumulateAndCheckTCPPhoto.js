@@ -1,6 +1,41 @@
-// Retrieve existing buffer and started flag from flow context
+// Retrieve existing buffer, started flag, and last activity timestamp from flow context
 let accumulated = flow.get('accumulatedBuffer') || Buffer.alloc(0);
 let started = flow.get('photoTransferStarted') || false;
+let lastActivity = flow.get('lastPhotoActivity') || Date.now();
+
+// Update last activity timestamp
+flow.set('lastPhotoActivity', Date.now());
+
+// Check for timeout if we've started receiving data
+if (started && accumulated.length > 0) {
+    const TIMEOUT_MS = 20000; // 20 seconds
+    if (Date.now() - lastActivity > TIMEOUT_MS) {
+        node.warn('Timeout detected - no data received for 20 seconds. Forcing completion.');
+        
+        // Remove any partial end marker that might be present
+        while (accumulated.length >= 4 && 
+               accumulated[accumulated.length - 1] === 0xFF &&
+               accumulated[accumulated.length - 2] === 0xFF &&
+               accumulated[accumulated.length - 3] === 0xFF &&
+               accumulated[accumulated.length - 4] === 0xFF) {
+            accumulated = accumulated.slice(0, -4);
+        }
+        
+        // Create message with accumulated data
+        msg.payload = accumulated;
+        msg.headers = {
+            'Content-Type': 'image/jpeg'
+        };
+        msg.timeout = true; // Flag to indicate timeout completion
+
+        // Reset all state
+        flow.set('accumulatedBuffer', Buffer.alloc(0));
+        flow.set('photoTransferStarted', false);
+        flow.set('lastPhotoActivity', null);
+
+        return msg;
+    }
+}
 
 // Ensure incoming is a Buffer
 let incoming = msg.payload;
@@ -61,6 +96,7 @@ if (accumulated.length >= 4) {
         // Reset the accumulation state
         flow.set('accumulatedBuffer', Buffer.alloc(0));
         flow.set('photoTransferStarted', false);
+        flow.set('lastPhotoActivity', null);
 
         return msg;
     }

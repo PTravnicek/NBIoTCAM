@@ -1,11 +1,11 @@
 # TODO List
 
 ## In Progress
-- [ ] Solve REBOOT_CAUSE_SECURITY_PMU_POWER_ON_RESET, problably power supply problem.
+- [ ] Solve REBOOT_CAUSE_SECURITY_PMU_POWER_ON_RESET, problably power supply problem. / no issue when power from bench
+- [ ] Timeout for the photo transfer on node-red.
 
 ## Upcoming
 - [ ] Try HW modding the BC95 module and power it from the 3.3V pin instead of the LDO.
-- [ ] Timeout for the photo transfer on node-red.
 - [ ] Some problems with UDP message when TCP is not sent. 
         Problem: NO RESPONSE FROM THE MODULE
             [BC95 SEND] AT+NRB
@@ -54,6 +54,9 @@
         [BC95 RSP] OK
         [BC95 SEND] AT+NSOCR=STREAM,6,0,1
         Failed to create TCP socket!
+- [ ] Downlink messages/ receive command.
+        4.8. AT+NSORF Receive Command
+        When data arrives, a “+NSONMI” response will be generated to indicate the socket the message was received on and also the amount of data
 
 ## Completed
 - [x] Accept only traffic from the actual photo tcp transfer (opening and closing bytes). 
