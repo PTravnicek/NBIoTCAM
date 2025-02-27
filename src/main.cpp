@@ -57,6 +57,7 @@ HardwareSerial bc95_modem(2);
 const String SERVER_IP = "34.75.62.225";
 const int    TCP_PORT  = 8009; 
 const int    UDP_PORT  = 8094;
+bool moduleInitialized = false;
 
 // GNSS Mode selection: Choose either INDOOR or OUTDOOR
 enum Mode { INDOOR, OUTDOOR };
@@ -209,8 +210,9 @@ bool initCamera() {
 
   // If PSRAM is found, allow higher quality and double buffering
   if (psramFound()) {
-    config.jpeg_quality = 10;  
-    config.fb_count     = 2;   
+    debug("psramFound");
+    config.jpeg_quality = 63; // Dont want higher quality  
+    config.fb_count     = 1;   
     config.grab_mode    = CAMERA_GRAB_LATEST;
   } else {
     // Without PSRAM, reduce frame size
@@ -356,12 +358,51 @@ String prepareHexMessage() {
  * Initialize the BC95 module (reset, set to full functionality, attach).
  */
 void initializeModule() {
-  sendATCommand("AT+NRB");       // Restart module
+  sendATCommand("AT+NCONFIG=AUTOCONNECT,FALSE");    // Disable automatic network attachment
+  // sendATCommand("AT+CGDCONT=0,"IPV4V6","ims",,0,0,,,,,0,1"); // Define the PDP to be used
+  // sendATCommand("AT+CGAUTH=0,1,"mtc","mtc""); // Define PDP context authentication parameters
+  sendATCommand("AT+NRB");          // Restart module
+  sendATCommand("AT+CFUN=1");     // Full functionality mode
+  // sendATCommand("AT+CGDCONT?");   // Query the PDP
+  sendATCommand("AT+CGATT=1");    // Trigger network attachment
+  // sendATCommand("AT+NUESTATS");   // Query the module status
+  
+  // Keep checking registration status until registered (response = 1)
+  String response;
+  do {
+    response = sendATCommand("AT+CEREG?", 1000);
+    if (response.indexOf("+CEREG:0,2") != -1) {
+      debugln("Network searching, retrying...");
+      delay(1000);
+    } else if (response.indexOf("+CEREG:0,0") != -1) {
+      debugln("Not registered, not searching. Retrying...");
+      delay(1000);
+    } else if (response.indexOf("+CEREG:0,3") != -1) {
+      debugln("Registration denied! Retrying...");
+      delay(1000); 
+    } else if (response.indexOf("+CEREG:0,4") != -1) {
+      debugln("Unknown registration status. Retrying...");
+      delay(1000);
+    }
+  } while (response.indexOf("+CEREG:0,1") == -1 && response.indexOf("+CEREG:0,5") == -1);
+  
+  if (response.indexOf("+CEREG:0,1") != -1) {
+    debugln("Network registered successfully (home network)");
+  } else {
+    debugln("Network registered successfully (roaming)");
+  }
+
+  sendATCommand("AT+CGATT?",5000);     // Query whether the network has been activated. 
+                                  // If +CGATT:1, then the network has been activated successfully. 
+                                  // Sometimes, there might be a need to wait for 30s.
+  sendATCommand("AT+CGPADDR");    // Query IP address of the module
+
+  sendATCommand("AT+QREGSWT=2");  // Disable Huawei platform registration
+  sendATCommand("AT+CGATT?");     // Query whether the network has been activated. 0 = detached
+  
+  moduleInitialized = true;
   // sendATCommand("AT+CFUN=0");    // Deactivate radio before setting multitone
   // sendATCommand("AT+NCONFIG=MULTITONE,TRUE"); // Configure UE Behaviour
-  sendATCommand("AT+CFUN=1");    // Full functionality mode
-  sendATCommand("AT+CGATT=1");   // Attach to network
-  sendATCommand("AT+QREGSWT=2"); // Disable Huawei platform registration
   // sendATCommand("AT+NCONFIG?"); // Check UE Behaviour settings
 }
 
@@ -397,7 +438,9 @@ bool sendPhotoOverTCP(const uint8_t *buffer, size_t length) {
   debugln("sendPhotoOverTCP() starting...");
 
   // 1) Initialize the module
-  initializeModule();
+  if (!moduleInitialized) {
+    initializeModule();
+  }
 
   // 2) Create a TCP socket: "AT+NSOCR=STREAM,6,0,1"
   String socketResp = sendATCommand("AT+NSOCR=STREAM,6,0,1", 300);
@@ -500,6 +543,14 @@ bool sendPhotoOverTCP(const uint8_t *buffer, size_t length) {
 }
 
 
+void receiveUDPMessage() {
+
+  sendATCommand("AT+CGPADDR"); // Query IP address of the module //TODO: The address should be sent to the node-red
+  // sendATCommand("AT+NSOCR=DGRAM,17,0,1"); // Create a UDP socket - dont need to create a new socket when UDP has one already created for sending
+  // wait for the message to arrive
+  // sendATCommand("AT+NSOCL=1"); // Close the socket - dont need, will be closed for the whole UDP function
+}
+
 /**
  * Send a UDP message.
  *
@@ -507,8 +558,13 @@ bool sendPhotoOverTCP(const uint8_t *buffer, size_t length) {
  * Telegraf line protocol message, and closes the socket. If the UDP
  * send command returns an error, it retries up to 5 times.
  */
+
+bool closeUDPSocket = true; // decide if close the socket after sending the message (for receiving)
+
 void sendUDPMessage() {
-  initializeModule();
+  if (!moduleInitialized) {
+    initializeModule();
+  }
 
   // Prepare message in HEX
   String hexMessage = prepareHexMessage();
@@ -549,12 +605,17 @@ void sendUDPMessage() {
       debugln("UDP message failed to send after " + String(MAX_ATTEMPTS) + " attempts.");
     }
 
+    receiveUDPMessage(); // Receive a UDP message before the socket is closed
+
     // Close the UDP socket
-    sendATCommand("AT+NSOCL=" + String(socketIDUDP), 100);
+    if (closeUDPSocket) {
+      sendATCommand("AT+NSOCL=" + String(socketIDUDP), 100);
+    }
   } else {
     debugln("Failed to parse UDP socket ID!");
   }
 }
+
 
 
 /**
