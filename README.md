@@ -17,6 +17,8 @@ This project implements a GPS-enabled photo capture and upload system using an E
 - Sends GPS telemetry over UDP in Telegraf line protocol format
 - Supports both outdoor (real GPS) and indoor (mock location) modes
 - Battery level monitoring
+- Robust network connection handling with auto-retry
+- Persistent modem initialization state
 
 ## Data Protocols
 
@@ -25,9 +27,14 @@ Photos are sent in chunks with special markers:
 - Start marker: `[0x00, 0x00, 0x00, 0x00]`
 - End marker: `[0xFF, 0xFF, 0xFF, 0xFF]`
 - Maximum chunk size: 1300 bytes
+- Automatic retry on failed transmissions
+- Timeout handling for incomplete transfers (20 seconds)
 
 ### UDP GPS Data Format
-GPS data is sent in Telegraf line protocol format: 
+GPS data is sent in Telegraf line protocol format:
+```
+gps_data,device=esp32 latitude=50.123400,longitude=14.123400,altitude=123.4,speed=0.00,course=0.00,satellites=0,battery=42
+```
 
 ## Setup Instructions
 
@@ -48,12 +55,18 @@ GPS data is sent in Telegraf line protocol format:
 
 The project includes Node-RED flows for processing incoming data:
 
-- TCP photo handling reassembles incoming photo chunks by:
-  - Detecting start marker
-  - Accumulating data
-  - Detecting end marker
-  - Outputting complete JPEG
-- UDP flow processes GPS telemetry for visualization or storage
+### TCP Photo Handling
+- Detects start marker and begins accumulation
+- Handles timeouts (20 second threshold)
+- Removes protocol markers from final image
+- Outputs complete JPEG when end marker is detected
+- Automatic cleanup of incomplete transfers
+
+### UDP Flow
+- Processes GPS telemetry
+- Parses Telegraf line protocol format
+- Converts to structured data for storage/visualization
+- Handles both hex and direct ASCII formats
 
 ## Power Management
 
@@ -61,3 +74,11 @@ The AXP313A power management IC handles:
 - Camera power control
 - Battery monitoring
 - Power optimization
+
+## Network Management
+
+- Automatic network registration handling
+- Connection status monitoring
+- Configurable retry attempts for failed transmissions
+- Support for both home network and roaming
+- IP address monitoring and reporting

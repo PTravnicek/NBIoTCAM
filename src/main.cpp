@@ -119,6 +119,8 @@ void setup() {
   // Start Serial for debug
   Serial.begin(115200);
   delay(1000);
+
+  // Initialize GNSS module
   while(!gnss.begin()){
     Serial.println("NO Deivces !");
     delay(1000);
@@ -127,33 +129,37 @@ void setup() {
   gnss.setGnss(eGPS_GLONASS);
   gnss.setRgbOn();
 
+  // Initialize BC95 modem regardless of camera job
+  bc95_modem.begin(9600, SERIAL_8N1, BC95_RX_PIN, BC95_TX_PIN);
+  debugln("BC95 modem initialized.");
+
+  // Get GPS data
   getGPS();
   delay(1000);
 
   if (doCameraTCPJob) {
-    // 1) Initialize the camera
+    // Initialize camera only if we need it
     if (!initCamera()) {
       debugln("Camera init failed. Check connections/settings.");
       return;
     }
     
-    // 2) Initialize the BC95 modem
-    bc95_modem.begin(9600, SERIAL_8N1, BC95_RX_PIN, BC95_TX_PIN);
-    debugln("BC95 modem initialized.");
-
-    // 3) Capture a single photo in 'capturedFrame'
+    // Capture a single photo in 'capturedFrame'
     capturePhoto();
     
-    // 4) Send the captured photo over TCP (if available)
+    // Send the captured photo over TCP (if available)
     if (capturedFrame) {
       sendPhotoOverTCP(capturedFrame->buf, capturedFrame->len);
       
       // IMPORTANT: Release the frame buffer when you're done
       esp_camera_fb_return(capturedFrame);
       capturedFrame = nullptr;
+      axp.disablePower();
+      debugln("camera power down");
     }
   }
 
+  // Send UDP message regardless of camera job
   sendUDPMessage();
 }
 
@@ -264,7 +270,7 @@ void capturePhoto() {
  * @param waitMs How long to wait for a response (ms).
  * @return The response from the modem (trimmed).
  */
-String sendATCommand(const String &cmd, unsigned long waitMs = 3000) {
+String sendATCommand(const String &cmd, unsigned long waitMs = 1000) {
   debugln("[BC95 SEND] " + cmd);
   bc95_modem.print(cmd + "\r\n");
 
@@ -280,7 +286,7 @@ String sendATCommand(const String &cmd, unsigned long waitMs = 3000) {
   response.trim();
 
   if (response.length() > 0) {
-    debugln("[BC95 RSP] " + response);
+    debugln("[BC95 RSP] " + response) + '\n';
   }
 
   return response;
@@ -358,41 +364,69 @@ String prepareHexMessage() {
  * Initialize the BC95 module (reset, set to full functionality, attach).
  */
 void initializeModule() {
-  sendATCommand("AT+NCONFIG=AUTOCONNECT,FALSE");    // Disable automatic network attachment
+  String NCONFIGresponse;
+  do {
+    NCONFIGresponse = sendATCommand("AT+NCONFIG=AUTOCONNECT,FALSE");    // Disable automatic network attachment
+  } while (NCONFIGresponse.indexOf("OK") == -1);
   // sendATCommand("AT+CGDCONT=0,"IPV4V6","ims",,0,0,,,,,0,1"); // Define the PDP to be used
   // sendATCommand("AT+CGAUTH=0,1,"mtc","mtc""); // Define PDP context authentication parameters
-  sendATCommand("AT+NRB");          // Restart module
-  sendATCommand("AT+CFUN=1");     // Full functionality mode
+  // Send reboot command and wait for "REBOOTING" response
+
+  String NRBresponse = sendATCommand("AT+NRB", 300);
+  if (NRBresponse.indexOf("REBOOTING") != -1) {
+    // Wait for reboot to complete and get "OK" response
+    delay(5000); // Give module time to reboot
+    NRBresponse = sendATCommand("", 1000); // Just read any pending response
+  }
+
+  
+  String cfunResponse ;
+  do {
+    cfunResponse = sendATCommand("AT+CFUN=1", 300);    // Disable automatic network attachment
+    debugln("cfunResponse response: " + cfunResponse);
+    if (cfunResponse.indexOf("ERROR") != -1) {
+      delay(300); // Wait 0.3 sec before retrying on error
+    }
+  } while (cfunResponse.indexOf("OK") == -1);
+  
   // sendATCommand("AT+CGDCONT?");   // Query the PDP
   sendATCommand("AT+CGATT=1");    // Trigger network attachment
   // sendATCommand("AT+NUESTATS");   // Query the module status
-  
+
   // Keep checking registration status until registered (response = 1)
-  String response;
+  String CEREGresponse;
   do {
-    response = sendATCommand("AT+CEREG?", 1000);
-    if (response.indexOf("+CEREG:0,2") != -1) {
+    CEREGresponse = sendATCommand("AT+CEREG?", 1000);
+    debugln("AT+CEREG? response: " + CEREGresponse);
+    if (CEREGresponse.indexOf("+CEREG:0,2") != -1) {
       debugln("Network searching, retrying...");
       delay(1000);
-    } else if (response.indexOf("+CEREG:0,0") != -1) {
+    } else if (CEREGresponse.indexOf("+CEREG:0,0") != -1) {
       debugln("Not registered, not searching. Retrying...");
       delay(1000);
-    } else if (response.indexOf("+CEREG:0,3") != -1) {
+    } else if (CEREGresponse.indexOf("+CEREG:0,3") != -1) {
       debugln("Registration denied! Retrying...");
       delay(1000); 
-    } else if (response.indexOf("+CEREG:0,4") != -1) {
+    } else if (CEREGresponse.indexOf("+CEREG:0,4") != -1) {
       debugln("Unknown registration status. Retrying...");
       delay(1000);
     }
-  } while (response.indexOf("+CEREG:0,1") == -1 && response.indexOf("+CEREG:0,5") == -1);
+  } while (CEREGresponse.indexOf("+CEREG:0,1") == -1 && CEREGresponse.indexOf("+CEREG:0,5") == -1);
   
-  if (response.indexOf("+CEREG:0,1") != -1) {
+  if (CEREGresponse.indexOf("+CEREG:0,1") != -1) {
     debugln("Network registered successfully (home network)");
   } else {
     debugln("Network registered successfully (roaming)");
   }
 
-  sendATCommand("AT+CGATT?",5000);     // Query whether the network has been activated. 
+  String cgattResponse = sendATCommand("AT+CGATT?");     // Query whether the network has been activated
+  if (cgattResponse.indexOf("+CGATT:1") != -1) {
+    debugln("Network attached successfully");
+  } else if (cgattResponse.indexOf("+CGATT:0") != -1) {
+    debugln("Network detached"); 
+  } else {
+    debugln("Unexpected CGATT response: " + cgattResponse);
+  }
                                   // If +CGATT:1, then the network has been activated successfully. 
                                   // Sometimes, there might be a need to wait for 30s.
   sendATCommand("AT+CGPADDR");    // Query IP address of the module
