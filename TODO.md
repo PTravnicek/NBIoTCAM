@@ -18,6 +18,9 @@
 
 ## Upcoming
 
+## Suggestions
+- [ ] Log full history of events in the RTC memory and upload it to the server for debugging purposes.
+
 
 ## Completed
 - [x] Speed up the connection process and photo sending by checking the status and proceeding the AT commands ASAP

@@ -1,0 +1,63 @@
+[
+    {
+        "id": "7ac2db874d8ca8ba",
+        "type": "inject",
+        "z": "d4e33c145f0fb0dd",
+        "name": "Test Downlink",
+        "props": [
+            {
+                "p": "payload"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "48656C6C6F",
+        "payloadType": "str",
+        "x": 510,
+        "y": 1440,
+        "wires": [
+            [
+                "bdb083f4231f2f3b"
+            ]
+        ]
+    },
+    {
+        "id": "5e348b4e9ece407d",
+        "type": "udp out",
+        "z": "d4e33c145f0fb0dd",
+        "name": "BC95 Downlink",
+        "addr": "100.121.61.85",
+        "iface": "",
+        "port": "3014",
+        "ipv": "udp4",
+        "outport": "3014",
+        "base64": false,
+        "multicast": "false",
+        "x": 980,
+        "y": 1440,
+        "wires": []
+    },
+    {
+        "id": "bdb083f4231f2f3b",
+        "type": "function",
+        "z": "d4e33c145f0fb0dd",
+        "name": "Format Downlink",
+        "func": "// Convert string to hex\nfunction stringToHex(str) {\n    return Buffer.from(str).toString('hex').toUpperCase();\n}\n\n// Your message\nconst message = 'Hello';\n\n// Add debug output\nnode.warn('Sending message: ' + message);\nnode.warn('As hex: ' + stringToHex(message));\n\n// Convert to hex\nmsg.payload = stringToHex(message);\nreturn msg;",
+        "outputs": 1,
+        "timeout": "",
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 750,
+        "y": 1440,
+        "wires": [
+            [
+                "5e348b4e9ece407d"
+            ]
+        ]
+    }
+]

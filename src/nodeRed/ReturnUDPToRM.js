@@ -29,8 +29,8 @@ try {
 
     // Construct final POST body
     let postBody = {
-        temperature: 0,
-        humidity: 0,
+        temperature: values.temperature,
+        humidity: values.humidity,
         distance: 0,
         latitude: values.latitude,
         longitude: values.longitude,
