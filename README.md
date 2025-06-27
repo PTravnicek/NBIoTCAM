@@ -4,21 +4,29 @@ This project implements a GPS-enabled photo capture and upload system using an E
 
 ## Hardware Components
 
-- ESP32-S3 with Camera
-- DFRobot GNSS Module
-- AXP313A Power Management
-- BC95 NB-IoT Modem
+| Component         | Description                        |
+|-------------------|------------------------------------|
+| ESP32-S3          | Main microcontroller                |
+| OV2640 Camera     | Image capture                       |
+| DFRobot GNSS      | GPS/GLONASS module                  |
+| AXP313A           | Power management IC                 |
+| BC95 NB-IoT Modem | Cellular connectivity (UDP/TCP)     |
+| LD7032 OLED       | 60x32 mini display                  |
+| AHT20 Sensor      | Temperature and humidity            |
+| Battery           | Li-ion/LiPo with voltage divider    |
 
-## Features
+## Software Features
 
 - Captures high-quality photos using ESP32 camera
 - Collects GPS data (latitude, longitude, altitude, speed, course)
 - Transmits photos over TCP with start/end markers
-- Sends GPS telemetry over UDP in Telegraf line protocol format
-- Supports both outdoor (real GPS) and indoor (mock location) modes
-- Battery level monitoring
+- Sends sensor and GPS telemetry over UDP in Telegraf line protocol format
+- Battery level monitoring and reporting
 - Robust network connection handling with auto-retry
 - Persistent modem initialization state
+- Deep sleep and night mode for power saving
+- OLED status display for battery and system state
+- Automatic network registration and DNS-based server addressing
 
 ## Data Protocols
 
@@ -30,26 +38,28 @@ Photos are sent in chunks with special markers:
 - Automatic retry on failed transmissions
 - Timeout handling for incomplete transfers (20 seconds)
 
-### UDP GPS Data Format
-GPS data is sent in Telegraf line protocol format:
+### UDP Sensor & GPS Data Format
+Data is sent in Telegraf line protocol format:
 ```
-gps_data,device=esp32 latitude=50.123400,longitude=14.123400,altitude=123.4,speed=0.00,course=0.00,satellites=0,battery=42
+gps_data,device=esp32 gpsFIX=true,temperature=23.1,humidity=45.2,battery=42
 ```
 
 ## Setup Instructions
 
 1. Install PlatformIO
-2. Configure your server IP and ports in `main.cpp`:
+2. Configure your server DNS and ports in `main.cpp`:
    ```cpp
-   const String SERVER_IP = "your.server.ip";
+   const String SERVER_IP = "www.iot-magic.com";
    const int TCP_PORT = 8009;
    const int UDP_PORT = 8094;
    ```
-3. Set the operating mode in `main.cpp`:
-   ```cpp
-   Mode currentMode = OUTDOOR;  // or INDOOR for testing
-   ```
-4. Upload the code to your ESP32
+3. Upload the code to your ESP32
+
+## Documentation
+
+- **LaTeX Chart**: See `documents/capacity_chart.tex` for a professional, customizable chart visualizing container fill levels over time for different materials (concrete, bricks, AAC, asphalt, free space). The chart is styled for presentations and can be compiled to PDF.
+- **Datasheets**: See `datasheets/` for hardware reference manuals.
+- **Node-RED Flows**: Node-RED server-side flows for TCP/UDP data processing are available (see comments in `main.cpp`).
 
 ## Server-Side Processing
 
@@ -63,22 +73,25 @@ The project includes Node-RED flows for processing incoming data:
 - Automatic cleanup of incomplete transfers
 
 ### UDP Flow
-- Processes GPS telemetry
+- Processes sensor and GPS telemetry
 - Parses Telegraf line protocol format
 - Converts to structured data for storage/visualization
 - Handles both hex and direct ASCII formats
 
-## Power Management
+## Power & Network Management
 
-The AXP313A power management IC handles:
-- Camera power control
-- Battery monitoring
-- Power optimization
-
-## Network Management
-
-- Automatic network registration handling
-- Connection status monitoring
+- AXP313A manages camera power, battery monitoring, and power optimization
+- Automatic network registration and DNS-based server addressing
 - Configurable retry attempts for failed transmissions
 - Support for both home network and roaming
 - IP address monitoring and reporting
+
+## Recent Changes
+- Switched to DNS for server address (`www.iot-magic.com`)
+- Added LaTeX chart and documentation in `documents/`
+- Updated hardware/software documentation and tables
+- Improved power management and deep sleep logic
+
+---
+
+For questions or contributions, please open an issue or pull request on GitHub.
