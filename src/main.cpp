@@ -120,7 +120,10 @@ Adafruit_AHTX0 aht;
 HardwareSerial bc95_modem(2);
 
 // Server details
-const String SERVER_IP = "35.231.115.19";  // tohle je stara IP:"34.75.62.225";
+const String SERVER_IP = "www.iot-magic.com";  // tohle je stara IP:"35.231.115.19"<-pred utokem, "34.75.62.225";
+// node-red http://35.211.34.129:1880/
+// iot-magic.com odkazuje na DNS namecheap na IP 35.211.34.129
+// IP not hardcoded, because it might change even though its static
 const int    TCP_PORT  = 8009; 
 const int    UDP_PORT  = 8094;
 bool moduleInitialized = false;
