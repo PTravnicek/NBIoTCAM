@@ -101,7 +101,7 @@ Adafruit_AHTX0 aht;
 // ---------------------------------------------------------------------------
 
 // Debugging option
-#define DEBUG 1
+#define DEBUG 0
 
 #if DEBUG == 1
   #define debug(x)   Serial.print(x)
@@ -120,10 +120,8 @@ Adafruit_AHTX0 aht;
 HardwareSerial bc95_modem(2);
 
 // Server details
-const String SERVER_IP = "www.iot-magic.com";  // tohle je stara IP:"35.231.115.19"<-pred utokem, "34.75.62.225";
-// node-red http://35.211.34.129:1880/
-// iot-magic.com odkazuje na DNS namecheap na IP 35.211.34.129
-// IP not hardcoded, because it might change even though its static
+const String SERVER_IP = "34.170.160.152";  // Address of system sending the message.
+// IP addresses can be specified in decimal, octal or hexadecimal notation.
 const int    TCP_PORT  = 8009; 
 const int    UDP_PORT  = 8094;
 bool moduleInitialized = false;
@@ -169,8 +167,8 @@ RTC_DATA_ATTR bool wasNightSleep = false;
 // ---------------------------------------------------------------------------
 // Sleep configuration
 // ---------------------------------------------------------------------------
-int napTimeHour = 22;                  // Time when the unit goes to sleep for the whole night
-int wakeUpHour = 6;                    // Time when the unit will wake up and follow normal work/sleep cycles
+int napTimeHour = 18;                  // Time when the unit goes to sleep for the whole night
+int wakeUpHour = 8;                    // Time when the unit will wake up and follow normal work/sleep cycles
 
 // Add near the top with other defines
 #define ANALOG_PIN A5  // ADC2_0
@@ -229,7 +227,7 @@ void readAHTSensor();
 void enterSleepMode();
 void getGNSS();
 bool parseNetworkTime(String timeResponse, int &hour, int &minute);
-bool checkNightTime(int hour, int minute);
+bool checkNapTime(int hour, int minute);
 
 // ---------------------------------------------------------------------------
 // setup()
@@ -302,8 +300,8 @@ void setup() {
     // Parse time and check if it's night time
     int networkHour, networkMinute;
     if (parseNetworkTime(timeResponse, networkHour, networkMinute)) {
-      if (checkNightTime(networkHour, networkMinute)) {
-        // Device will go to sleep in checkNightTime() if it's night
+      if (checkNapTime(networkHour, networkMinute)) {
+        // Device will go to sleep in checkNapTime() if it's night
         // This code won't be reached if it's night time
       }
     } else {
@@ -338,6 +336,10 @@ void setup() {
   }
   // Send UDP message regardless of camera job
   sendUDPMessage();
+
+  // After waking up, reset customSleepDuration to default unless night sleep is triggered again
+  customSleepDuration = DEFAULT_SLEEP_TIME;
+  wasNightSleep = false;
 
   enterSleepMode();
 }
@@ -1048,85 +1050,17 @@ void enterSleepMode() {
     delay(10);
   }
   
-  debugln("Deinitializing camera...");
-  esp_camera_deinit(); // Always deinitialize camera
-  delay(100); // 
-  
-  // Stop LEDC timer used for XCLK
-  debugln("Stopping camera clock...");
-  ledc_timer_rst(LEDC_LOW_SPEED_MODE, LEDC_TIMER_0);
-  ledc_stop(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, 0);
-  
-  // Reset camera GPIO pins to reduce power consumption
-  debugln("Resetting camera GPIO pins...");
-  gpio_reset_pin((gpio_num_t)XCLK_GPIO_NUM);
-  gpio_reset_pin((gpio_num_t)SIOD_GPIO_NUM);
-  gpio_reset_pin((gpio_num_t)SIOC_GPIO_NUM);
-  gpio_reset_pin((gpio_num_t)Y9_GPIO_NUM);
-  gpio_reset_pin((gpio_num_t)Y8_GPIO_NUM);
-  gpio_reset_pin((gpio_num_t)Y7_GPIO_NUM);
-  gpio_reset_pin((gpio_num_t)Y6_GPIO_NUM);
-  gpio_reset_pin((gpio_num_t)Y5_GPIO_NUM);
-  gpio_reset_pin((gpio_num_t)Y4_GPIO_NUM);
-  gpio_reset_pin((gpio_num_t)Y3_GPIO_NUM);
-  gpio_reset_pin((gpio_num_t)Y2_GPIO_NUM);
-  gpio_reset_pin((gpio_num_t)VSYNC_GPIO_NUM);
-  gpio_reset_pin((gpio_num_t)HREF_GPIO_NUM);
-  gpio_reset_pin((gpio_num_t)PCLK_GPIO_NUM);
 
-  // Reset I2C/SCCB peripheral
-  debugln("Resetting I2C peripheral...");
-  i2c_driver_delete(I2C_NUM_0);
-  
-  // Disable camera power domains in ESP32
-  debugln("Disabling camera power domains...");
-  // Reset camera peripheral completely
-  periph_module_disable(PERIPH_I2S0_MODULE);
-  periph_module_disable(PERIPH_I2S1_MODULE);
-  
   debugln("Disabling camera power...");
   
-  // Method 1: Use the standard function first
-  axp.disablePower(); // Disable AXP power
-  delay(100);
-  
-  // Method 2: Manually ensure complete power shutdown by setting voltage registers to 0
-  debugln("Manual camera power shutdown...");
-  
-  // Create a private access method to write registers directly
-  // We'll access the AXP313A registers directly to ensure complete shutdown
-  uint8_t powerDisable = 0x01;  // Disable power enable register
-  uint8_t voltageZero = 0x00;   // Set voltage to 0
-  
-  // Disable power enable register (0x10)
-  Wire.beginTransmission(0x36); // AXP313A I2C address
-  Wire.write(0x10);
-  Wire.write(powerDisable);
-  Wire.endTransmission();
-  delay(10);
-  
-  // Set ALDO voltage to 0 (register 0x16) 
-  Wire.beginTransmission(0x36);
-  Wire.write(0x16);
-  Wire.write(voltageZero);
-  Wire.endTransmission();
-  delay(10);
-  
-  // Set DLDO voltage to 0 (register 0x17)
-  Wire.beginTransmission(0x36);
-  Wire.write(0x17);
-  Wire.write(voltageZero);
-  Wire.endTransmission();
-  delay(10);
-  
-  debugln("Camera power rails set to zero voltage");
-  
-  // Try multiple approaches to ensure camera is completely off
-  debugln("Multiple camera power-down attempts...");
+
   
   // Method 1: Reset AXP313A completely
   axp.begin(); // Re-initialize AXP313A without camera power
-  
+  // Method 1: Use the standard function first
+  axp.disablePower(); // Disable AXP power
+  delay(100);
+   
   // Method 2: If there's a camera power pin, set it to disable camera
   // (This might be board-specific - check your schematic)
   
@@ -1342,15 +1276,23 @@ bool parseNetworkTime(String timeResponse, int &hour, int &minute) {
 /**
  * Check if it's night time and handle sleep if needed
  */
-bool checkNightTime(int hour, int minute) {
+bool checkNapTime(int hour, int minute) {
   int localHour = (hour + TIMEZONE_OFFSET) % 24;  // Adjust for local timezone
   
   debugln("Network time: " + String(hour) + ":" + String(minute));
   debugln("Local time: " + String(localHour) + ":" + String(minute));
   
-  if (localHour >= napTimeHour || localHour < wakeUpHour) {
-    debugln("Night time detected! Going to extended sleep...");
-    oled_display("Night", "time", "sleep");
+  bool isNapTime = false;
+  if (napTimeHour < wakeUpHour) {
+    // Nap time does NOT cross midnight
+    isNapTime = (localHour >= napTimeHour && localHour < wakeUpHour);
+  } else {
+    // Nap time crosses midnight (e.g., 22 to 6)
+    isNapTime = (localHour >= napTimeHour || localHour < wakeUpHour);
+  }
+  if (isNapTime) {
+    debugln("Nap time detected! Going to extended sleep...");
+    oled_display("Nap", "time", "sleep");
     
     int minutesUntilWake = calculateSleepDuration(localHour, minute);
     customSleepDuration = minutesUntilWake * 60;  // Convert to seconds
@@ -1361,7 +1303,7 @@ bool checkNightTime(int hour, int minute) {
     return true;  // This won't be reached due to deep sleep
   }
   
-  debugln("Day time - continuing normal operation");
+  debugln("Awake time - continuing normal operation");
   return false;
 }
 
