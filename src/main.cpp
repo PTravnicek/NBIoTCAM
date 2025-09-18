@@ -10,6 +10,7 @@
 #include "driver/rtc_io.h"
 #include "driver/i2c.h"
 #include "driver/periph_ctrl.h"
+#include "esp_heap_caps.h"
 #include <SPI.h>
 #include <Wire.h>
 #include <U8g2lib.h>
@@ -50,11 +51,22 @@
 __attribute__((weak)) void *ei_malloc(size_t size) {
     // For large allocations (>1KB), prefer PSRAM
     if (size > 1024) {
-        void* ptr = heap_caps_malloc(size, MALLOC_CAP_SPIRAM);
+        void* ptr = heap_caps_malloc(size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
         if (ptr) return ptr;
     }
     // Fallback to regular heap
     return heap_caps_malloc(size, MALLOC_CAP_8BIT);
+}
+
+__attribute__((weak)) void *ei_calloc(size_t nitems, size_t size) {
+    size_t total = nitems * size;
+    if (total > 1024) {
+        void *ptr = heap_caps_calloc(nitems, size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+        if (ptr) {
+            return ptr;
+        }
+    }
+    return heap_caps_calloc(nitems, size, MALLOC_CAP_8BIT);
 }
 
 __attribute__((weak)) void ei_free(void* ptr) {
