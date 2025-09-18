@@ -15,6 +15,7 @@
 #include <Wire.h>
 #include <U8g2lib.h>
 #include <WiFi.h>
+#include <cstring>
 
 #include <DFRobot_SHT40.h>
 
@@ -49,24 +50,43 @@
 
 // Override Edge Impulse memory allocation to force PSRAM usage for large allocations
 __attribute__((weak)) void *ei_malloc(size_t size) {
+    if (size == 0) {
+        return nullptr;
+    }
+
     // For large allocations (>1KB), prefer PSRAM
     if (size > 1024) {
-        void* ptr = heap_caps_malloc(size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
-        if (ptr) return ptr;
-    }
-    // Fallback to regular heap
-    return heap_caps_malloc(size, MALLOC_CAP_8BIT);
-}
-
-__attribute__((weak)) void *ei_calloc(size_t nitems, size_t size) {
-    size_t total = nitems * size;
-    if (total > 1024) {
-        void *ptr = heap_caps_calloc(nitems, size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+        void *ptr = heap_caps_aligned_alloc(16, size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
         if (ptr) {
             return ptr;
         }
     }
-    return heap_caps_calloc(nitems, size, MALLOC_CAP_8BIT);
+
+    // Fallback to aligned internal RAM
+    return heap_caps_aligned_alloc(16, size, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+}
+
+__attribute__((weak)) void *ei_calloc(size_t nitems, size_t size) {
+    size_t total = nitems * size;
+    if (total == 0) {
+        return nullptr;
+    }
+
+    void *ptr = nullptr;
+
+    if (total > 1024) {
+        ptr = heap_caps_aligned_alloc(16, total, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    }
+
+    if (!ptr) {
+        ptr = heap_caps_aligned_alloc(16, total, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+    }
+
+    if (ptr) {
+        std::memset(ptr, 0, total);
+    }
+
+    return ptr;
 }
 
 __attribute__((weak)) void ei_free(void* ptr) {
