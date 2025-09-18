@@ -74,8 +74,7 @@ public:
    * @return NONE
    */
   void setShutdownKeyLevelTime(eShutdownKeyLevelTime_t offLevelTime);
-
-private:
+  
   /**
    * @fn writeReg
    * @brief   Write register value through IIC bus
@@ -84,6 +83,8 @@ private:
    * @param size The length of data to be written
    */
   void writeReg(uint8_t reg, void *pBuf, size_t size);
+
+private:
 
   /**
    * @fn enablePower

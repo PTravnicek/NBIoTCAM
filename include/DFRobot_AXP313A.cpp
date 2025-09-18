@@ -20,7 +20,16 @@ DFRobot_AXP313A::DFRobot_AXP313A(uint8_t addr, TwoWire *pWire)
 uint8_t DFRobot_AXP313A::begin(void)
 {
   uint8_t state = 0x04;
+  // Ensure I2C is initialized on the same pins as the application
+#ifdef I2C_SDA_PIN
+#ifdef I2C_SCL_PIN
+  _pWire->begin(I2C_SDA_PIN, I2C_SCL_PIN);
+#else
   _pWire->begin();
+#endif
+#else
+  _pWire->begin();
+#endif
   _pWire->beginTransmission(_addr);
   _pWire->write(0x00);
   if(_pWire->endTransmission() != 0)
